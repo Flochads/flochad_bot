@@ -206,6 +206,99 @@ class StatsCog(commands.Cog):
             else:
                 await ctx.send(msg)
 
+    async def _build_claims_embeds(self, guild_id: int, since: datetime.datetime, label: str):
+        """Returns (list_of_embeds, fallback_message). Exactly one is non-None."""
+        HARD_LIMIT = 200
+        claims = await database.get_claims_chronological(guild_id, since, limit=HARD_LIMIT + 1)
+
+        truncated = len(claims) > HARD_LIMIT
+        if truncated:
+            claims = claims[:HARD_LIMIT]
+
+        if not claims:
+            return None, f"No claims were logged in the last {label}."
+
+        top3 = await database.get_top_claims_by_value(guild_id, since, limit=3)
+
+        PAGE_SIZE = 20
+        pages = [claims[i:i + PAGE_SIZE] for i in range(0, len(claims), PAGE_SIZE)]
+        total_pages = len(pages)
+        embeds = []
+
+        for page_num, page in enumerate(pages, 1):
+            lines = []
+            for user_name, character_name, value, timestamp in page:
+                try:
+                    dt = datetime.datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%Y/%m/%d %H:%M")
+                except Exception:
+                    time_str = "??:??"
+                lines.append(f"`{time_str}` **{user_name}**: {character_name} ({value:,})")
+
+            footer_parts = [f"Page {page_num}/{total_pages}"]
+            if truncated and page_num == total_pages:
+                footer_parts.append(f"Showing first {HARD_LIMIT} claims only")
+
+            embed = discord.Embed(
+                title=f"Claims Log (Last {label})" if page_num == 1 else None,
+                description="\n".join(lines),
+                color=discord.Color.teal()
+            )
+
+            if page_num == 1:
+                embed.add_field(name="Total Claims", value=f"**{len(claims):,}**", inline=False)
+                if top3:
+                    top3_lines = []
+                    for u_name, c_name, val, ts in top3:
+                        try:
+                            dt = datetime.datetime.fromisoformat(ts)
+                            ts_str = dt.strftime("%Y/%m/%d %H:%M")
+                        except Exception:
+                            ts_str = "??:??"
+                        top3_lines.append(f"`{ts_str}` **{u_name}**: {c_name} ({val:,})")
+                    embed.add_field(name="Top 3 Biggest Claims", value="\n".join(top3_lines), inline=False)
+
+            embed.set_footer(text=" • ".join(footer_parts))
+            embeds.append(embed)
+
+        return embeds, None
+
+    @commands.command(name="jews", help="Lists all claims in chronological order for a time frame (e.g. 20m, 20h, 20d).")
+    async def claims_log(self, ctx: commands.Context, time_frame: str):
+        match = re.match(r"^(\d+)([mhd]?)$", time_frame.lower().strip())
+        if not match:
+            await ctx.send("Invalid time frame format. Please use a number followed by 'm', 'h', or 'd' (e.g., `24h`, `7d`, `30m`).")
+            return
+
+        amount_str, unit = match.groups()
+        amount = int(amount_str)
+
+        if amount <= 0:
+            await ctx.send("Please specify a time frame greater than 0.")
+            return
+
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        if unit == 'm':
+            delta = datetime.timedelta(minutes=amount)
+            unit_name = "minutes"
+        elif unit == 'd':
+            delta = datetime.timedelta(days=amount)
+            unit_name = "days"
+        else:
+            delta = datetime.timedelta(hours=amount)
+            unit_name = "hours"
+
+        since = now_utc - delta
+
+        async with ctx.typing():
+            embeds, msg = await self._build_claims_embeds(ctx.guild.id, since, f"{amount} {unit_name}")
+            if embeds:
+                for embed in embeds:
+                    await ctx.send(embed=embed)
+            else:
+                await ctx.send(msg)
+
     @commands.command(name="enablehuge", help="Enable hourly huge alerts in the tracking channel (owner only).")
     async def enable_topk(self, ctx: commands.Context):
         if ctx.author.id != self.owner_id:
