@@ -87,23 +87,19 @@ class TrackerCog(commands.Cog):
                     is_edited = True # If before didn't have the embed but after does
                     
                 if is_edited:
-                    claimed_user = "Unknown"
-                    if after_embed.footer and after_embed.footer.text:
-                        if "Belongs to " in after_embed.footer.text:
-                            claimed_user = after_embed.footer.text.split("Belongs to ")[1].strip()
-                            claimed_user = claimed_user.split("~")[0].strip()
-                    
-                    # Extract character and kakera value to log it
-                    match = re.search(r'\b([\d,]+)\b[*_~\s]*<a?:kakera:\d+>', after_embed.description)
-                    kakera_value = 0
-                    if match:
-                        kakera_value = int(match.group(1).replace(',', ''))
-                        
-                    character_name = after_embed.title or (after_embed.author.name if getattr(after_embed.author, "name", None) else "Unknown")
-                    
-                    # Log the claim
-                    now_utc = datetime.datetime.now(datetime.timezone.utc)
-                    await database.log_kakera_claim(after.guild.id, claimed_user, character_name, kakera_value, now_utc)
+                    if after_embed.footer and after_embed.footer.text and "Belongs to " in after_embed.footer.text:
+                        claimed_user = after_embed.footer.text.split("Belongs to ")[1].strip()
+                        claimed_user = claimed_user.split("~")[0].strip()
+
+                        match = re.search(r'\b([\d,]+)\b[*_~\s]*<a?:kakera:\d+>', after_embed.description)
+                        kakera_value = 0
+                        if match:
+                            kakera_value = int(match.group(1).replace(',', ''))
+
+                        character_name = after_embed.title or (after_embed.author.name if getattr(after_embed.author, "name", None) else "Unknown")
+
+                        now_utc = datetime.datetime.now(datetime.timezone.utc)
+                        await database.log_kakera_claim(after.guild.id, claimed_user, character_name, kakera_value, now_utc)
                 break
 
 async def setup(bot: commands.Bot):

@@ -132,7 +132,7 @@ async def get_claims_chronological(guild_id: int, since: datetime.datetime, limi
             SELECT user_name, character_name, value, timestamp
             FROM kakera_claims
             WHERE guild_id = ? AND timestamp >= ?
-            ORDER BY timestamp ASC
+            ORDER BY timestamp DESC
             LIMIT ?
         '''
         async with db.execute(query, (guild_id, since.isoformat(), limit)) as cursor:

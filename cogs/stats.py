@@ -6,6 +6,7 @@ import re
 import datetime
 import os
 import logging
+import asyncio
 
 class StatsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -216,14 +217,29 @@ class StatsCog(commands.Cog):
             claims = claims[:HARD_LIMIT]
 
         if not claims:
-            return None, f"No claims were logged in the last {label}."
+            return None, f"No jewish acts were logged in the last {label}."
 
-        top3 = await database.get_top_claims_by_value(guild_id, since, limit=3)
+        top5 = await database.get_top_claims_by_value(guild_id, since, limit=5)
 
         PAGE_SIZE = 20
         pages = [claims[i:i + PAGE_SIZE] for i in range(0, len(claims), PAGE_SIZE)]
         total_pages = len(pages)
         embeds = []
+
+        summary_prefix = ""
+        if top5:
+            top_5_lines = []
+            for u_name, c_name, val, ts in top5:
+                try:
+                    dt = datetime.datetime.fromisoformat(ts)
+                    ts_str = dt.strftime("%Y/%m/%d %H:%M")
+                except Exception:
+                    ts_str = "??:??"
+                top_5_lines.append(f"`{ts_str}` **{u_name}**: {c_name} ({val:,})")
+            summary_prefix = (
+                f"**Top 5 HUGE Jewish Acts in the last {label}**\n" + "\n".join(top_5_lines) + "\n\n"
+                f"**Jews Log**\n"
+            )
 
         for page_num, page in enumerate(pages, 1):
             lines = []
@@ -237,33 +253,21 @@ class StatsCog(commands.Cog):
 
             footer_parts = [f"Page {page_num}/{total_pages}"]
             if truncated and page_num == total_pages:
-                footer_parts.append(f"Showing first {HARD_LIMIT} claims only")
+                footer_parts.append(f"Showing first {HARD_LIMIT} Jewish acts only")
+
+            description = (summary_prefix if page_num == 1 else "") + "\n".join(lines)
 
             embed = discord.Embed(
-                title=f"Claims Log (Last {label})" if page_num == 1 else None,
-                description="\n".join(lines),
+                title=f"Jews in the last {label}",
+                description=description,
                 color=discord.Color.teal()
             )
-
-            if page_num == 1:
-                embed.add_field(name="Total Claims", value=f"**{len(claims):,}**", inline=False)
-                if top3:
-                    top3_lines = []
-                    for u_name, c_name, val, ts in top3:
-                        try:
-                            dt = datetime.datetime.fromisoformat(ts)
-                            ts_str = dt.strftime("%Y/%m/%d %H:%M")
-                        except Exception:
-                            ts_str = "??:??"
-                        top3_lines.append(f"`{ts_str}` **{u_name}**: {c_name} ({val:,})")
-                    embed.add_field(name="Top 3 Biggest Claims", value="\n".join(top3_lines), inline=False)
-
             embed.set_footer(text=" • ".join(footer_parts))
             embeds.append(embed)
 
         return embeds, None
 
-    @commands.command(name="jews", help="Lists all claims in chronological order for a time frame (e.g. 20m, 20h, 20d).")
+    @commands.command(name="jews", help="Lists all jewish acts in chronological order for a time frame (e.g. 20m, 20h, 20d).")
     async def claims_log(self, ctx: commands.Context, time_frame: str):
         match = re.match(r"^(\d+)([mhd]?)$", time_frame.lower().strip())
         if not match:
@@ -293,11 +297,59 @@ class StatsCog(commands.Cog):
 
         async with ctx.typing():
             embeds, msg = await self._build_claims_embeds(ctx.guild.id, since, f"{amount} {unit_name}")
-            if embeds:
-                for embed in embeds:
-                    await ctx.send(embed=embed)
-            else:
-                await ctx.send(msg)
+
+        if not embeds:
+            await ctx.send(msg)
+            return
+
+        message = await ctx.send(embed=embeds[0])
+        if len(embeds) == 1:
+            return
+
+        await message.add_reaction("⏮️")
+        await message.add_reaction("◀️")
+        await message.add_reaction("▶️")
+        await message.add_reaction("⏭️")
+        current_page = 0
+
+        def check(reaction, user):
+            return (
+                user == ctx.author
+                and str(reaction.emoji) in ("⏮️", "◀️", "▶️", "⏭️")
+                and reaction.message.id == message.id
+            )
+
+        while True:
+            try:
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=60.0, check=check)
+                if str(reaction.emoji) == "▶️":
+                    if (current_page < len(embeds) - 1):
+                        current_page += 1
+                    else:
+                        current_page = 0
+                    await message.edit(embed=embeds[current_page])
+                elif str(reaction.emoji) == "◀️":
+                    if (current_page > 0):
+                        current_page -= 1
+                    else:
+                        current_page = len(embeds) - 1
+                    await message.edit(embed=embeds[current_page])
+                elif str(reaction.emoji) == "⏮️" and current_page > 0:
+                    current_page = 0
+                    await message.edit(embed=embeds[current_page])
+                elif str(reaction.emoji) == "⏭️" and current_page < len(embeds) - 1:
+                    current_page = len(embeds) - 1
+                    await message.edit(embed=embeds[current_page])
+                try:
+                    await message.remove_reaction(reaction, user)
+                except discord.Forbidden:
+                    pass
+            except asyncio.TimeoutError:
+                try:
+                    await message.clear_reactions()
+                except discord.Forbidden:
+                    pass
+                break
 
     @commands.command(name="enablehuge", help="Enable hourly huge alerts in the tracking channel (owner only).")
     async def enable_topk(self, ctx: commands.Context):
