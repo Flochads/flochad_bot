@@ -2,6 +2,8 @@
 
 This bot tracks usage activity for a specific target bot (e.g., Mudae) and generates beautiful heatmaps showing when the server or individual users are most active.
 
+# BRO IF you do a change then edit this here bro: basic.py LAST_UPDATED
+
 ## Features
 - Tracks prefix commands (`.`) in a specified tracking channel.
 - Tracks slash commands executed by users on the target bot.

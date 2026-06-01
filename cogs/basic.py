@@ -3,6 +3,8 @@ from discord.ext import commands
 
 import os
 
+LAST_UPDATED = "2026/06/01 UTC"
+
 class BasicCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -11,7 +13,7 @@ class BasicCog(commands.Cog):
     @commands.command(name="ping", help="Health check for the bot and returns latency.")
     async def ping(self, ctx: commands.Context):
         latency = round(self.bot.latency * 1000)
-        await ctx.send(f"I am the bone of my sword. (Latency: {latency}ms)")
+        await ctx.send(f"I am the bone of my sword. (Latency: {latency}ms)\nBtw last updated {LAST_UPDATED}")
 
     @commands.command(name="echo", help="Repeats the message back to you.")
     async def echo(self, ctx: commands.Context, *, message: str):
