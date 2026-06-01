@@ -126,6 +126,30 @@ async def log_kakera_claim(guild_id: int, user_name: str, character_name: str, v
         ''', (guild_id, user_name, character_name, value, timestamp.isoformat()))
         await db.commit()
 
+async def get_claims_chronological(guild_id: int, since: datetime.datetime, limit: int = 200):
+    async with aiosqlite.connect(DB_NAME) as db:
+        query = '''
+            SELECT user_name, character_name, value, timestamp
+            FROM kakera_claims
+            WHERE guild_id = ? AND timestamp >= ?
+            ORDER BY timestamp ASC
+            LIMIT ?
+        '''
+        async with db.execute(query, (guild_id, since.isoformat(), limit)) as cursor:
+            return await cursor.fetchall()
+
+async def get_top_claims_by_value(guild_id: int, since: datetime.datetime, limit: int = 3):
+    async with aiosqlite.connect(DB_NAME) as db:
+        query = '''
+            SELECT user_name, character_name, value, timestamp
+            FROM kakera_claims
+            WHERE guild_id = ? AND timestamp >= ?
+            ORDER BY value DESC, id DESC
+            LIMIT ?
+        '''
+        async with db.execute(query, (guild_id, since.isoformat(), limit)) as cursor:
+            return await cursor.fetchall()
+
 async def get_top_claimers(guild_id: int, since: datetime.datetime, limit: int = 5):
     async with aiosqlite.connect(DB_NAME) as db:
         query = '''
